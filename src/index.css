@@ -928,3 +928,168 @@ body, html, #root {
   text-decoration: underline;
   color: #312e81;
 }
+
+/* Mobile Phone Optimizations */
+@media (max-width: 768px) {
+  /* Change sidebar layout to transparent floating container without blur */
+  .sidebar-hud {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    background: transparent;
+    border: none;
+    padding: 0;
+    overflow: hidden;
+    pointer-events: none; /* Allow 3D canvas dragging through empty space */
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    box-shadow: none !important;
+  }
+
+  /* Make header float at the top */
+  .sidebar-header {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    padding: 16px 20px;
+    background: rgba(248, 250, 252, 0.85);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border-glass);
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    pointer-events: auto; /* Enable touch clicks */
+    z-index: 100;
+  }
+
+  .sidebar-header .flex-between {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .app-title {
+    font-size: 1.15rem !important; /* Smaller text size for phone screens */
+    letter-spacing: -0.01em;
+  }
+
+  .app-subtitle,
+  .last-refreshed-badge {
+    display: none !important; /* Hide subtitle and refresh log timestamps on phone */
+  }
+
+  .badge-container {
+    margin-top: 0 !important;
+  }
+  
+  .status-badge {
+    display: none !important; /* Hide Live/Dev text badge on mobile */
+  }
+
+  /* Hide section title header, footer dev controls, and closed badges */
+  .sidebar-section-title,
+  .sidebar-footer,
+  .sidebar-dev-panel,
+  .market-closed-badge {
+    display: none !important;
+  }
+
+  /* Floating suggestion pills container at the bottom */
+  .sidebar-indices-container {
+    position: fixed;
+    bottom: 24px;
+    left: 0;
+    width: 100%;
+    display: flex;
+    flex-direction: row !important; /* Stack horizontally as pills */
+    justify-content: flex-start !important; /* Start from the left */
+    align-items: center;
+    gap: 8px;
+    padding: 0 24px !important; /* Leave 24px space from left/right edges */
+    pointer-events: auto; /* Enable touch clicks */
+    z-index: 100;
+    overflow-x: auto;
+    scrollbar-width: none; /* Hide standard scrollbar */
+  }
+  
+  .sidebar-indices-container::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Style each card as a horizontal suggestion pill */
+  .index-small-card {
+    height: 38px !important;
+    min-height: unset !important;
+    padding: 8px 16px !important;
+    border-radius: 9999px !important; /* Full pill outline */
+    background: rgba(255, 255, 255, 0.75) !important;
+    border: 1px solid var(--border-glass) !important;
+    display: flex;
+    flex-direction: row !important;
+    align-items: center;
+    gap: 6px;
+    box-shadow: 0 4px 15px rgba(15, 23, 42, 0.05) !important;
+  }
+
+  .index-small-card.selected {
+    background: var(--color-indigo) !important;
+    border-color: var(--color-indigo) !important;
+    border-left: 1px solid var(--color-indigo) !important; /* Normal border instead of accent bar */
+    transform: scale(1.02);
+  }
+
+  .index-small-card.selected .asset-name,
+  .index-small-card.selected .asset-tag,
+  .index-small-card.selected .change-text {
+    color: #ffffff !important;
+  }
+  
+  .index-small-card.selected .asset-change.positive,
+  .index-small-card.selected .asset-change.negative {
+    color: #ffffff !important;
+    opacity: 0.9;
+  }
+
+  /* Pill internal components layout */
+  .index-small-card .card-header {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 4px;
+    margin-bottom: 0 !important;
+  }
+
+  .index-small-card .asset-name {
+    font-size: 0.72rem !important;
+    font-weight: 700;
+  }
+
+  /* Hide asset tag and price on phone to maintain layout simplicity */
+  .index-small-card .asset-tag,
+  .index-small-card .asset-price {
+    display: none !important;
+  }
+
+  .index-small-card .card-body {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .index-small-card .asset-change {
+    font-size: 0.7rem !important;
+    margin-top: 0 !important;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+  }
+
+  /* Hide trend arrow icon on phone */
+  .index-small-card .asset-change svg {
+    display: none !important;
+  }
+}
