@@ -18,49 +18,83 @@ function getWeatherState(weeklyChange: number): WeatherState {
 // Particle parameters
 const PARTICLE_COUNT = 150;
 
+// Helper to draw soft circular and streak textures dynamically for particles
+function createParticleTexture(type: 'mote' | 'rain'): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas');
+  canvas.width = 32;
+  canvas.height = 32;
+  const ctx = canvas.getContext('2d')!;
+
+  if (type === 'mote') {
+    // Soft radial glowing circle
+    const grad = ctx.createRadialGradient(16, 16, 0, 16, 16, 16);
+    grad.addColorStop(0, 'rgba(255, 255, 255, 1)');
+    grad.addColorStop(0.35, 'rgba(255, 255, 255, 0.8)');
+    grad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 32, 32);
+  } else {
+    // Thin vertical streak for rain
+    const grad = ctx.createLinearGradient(16, 2, 16, 30);
+    grad.addColorStop(0, 'rgba(255, 255, 255, 0)');
+    grad.addColorStop(0.5, 'rgba(255, 255, 255, 0.95)');
+    grad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(14, 0, 4, 32);
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  return texture;
+}
+
 export const WeatherSystem: React.FC<WeatherSystemProps> = ({ weeklyChangePercent }) => {
   const { scene } = useThree();
   const weather = useMemo(() => getWeatherState(weeklyChangePercent), [weeklyChangePercent]);
-  
+
   // References for lights and particles
   const dirLightRef = useRef<THREE.DirectionalLight>(null);
   const ambientLightRef = useRef<THREE.AmbientLight>(null);
   const particlesRef = useRef<THREE.Points>(null);
-  
+
   // State for tracking lightning flashes
   const flashTimer = useRef<number>(0);
   const flashIntensity = useRef<number>(0);
 
-  // Setup fog and background in the scene based on weather
+  // Target fog values derived from weather state
+  const targetFogColor = useMemo(() => {
+    if (weather === 'sunny') return new THREE.Color('#a8d8f0');
+    if (weather === 'cloudy') return new THREE.Color('#8fa0b5'); // light blue-grey
+    if (weather === 'rainy') return new THREE.Color('#5c708a');  // slate blue-grey
+    return new THREE.Color('#1a263d'); // deep indigo stormy blue-grey
+  }, [weather]);
+
+  const targetFogDensity = useMemo(() => {
+    if (weather === 'sunny') return 0.055; // Enough to fade ground edge (50 units away) completely into background
+    if (weather === 'cloudy') return 0.065;
+    if (weather === 'rainy') return 0.08;
+    return 0.095; // Dense stormy fog
+  }, [weather]);
+
+  // Initialize fog on mount and match background color to the target weather fog color
   React.useEffect(() => {
-    let bgColor = '#f8fafc'; // Default clean slate-50
-    let fogColor = '#f8fafc';
-    
-    if (weather === 'sunny') {
-      bgColor = '#f9f5ed'; // Softer warm linen cream (less glare)
-      fogColor = '#f9f5ed';
-      scene.fog = new THREE.FogExp2(fogColor, 0.015);
-    } else if (weather === 'cloudy') {
-      bgColor = '#9cb0c5'; // Darker overcast slate
-      fogColor = '#9cb0c5';
-      scene.fog = new THREE.FogExp2(fogColor, 0.03);
-    } else if (weather === 'rainy') {
-      bgColor = '#64748b'; // Dark slate-grey rain sky
-      fogColor = '#64748b';
-      scene.fog = new THREE.FogExp2(fogColor, 0.035);
-    } else if (weather === 'storm') {
-      bgColor = '#090d16'; // Pitch-black midnight sky
-      fogColor = '#090d16';
-      scene.fog = new THREE.FogExp2(fogColor, 0.035);
+    if (!scene.fog) {
+      scene.fog = new THREE.FogExp2(targetFogColor.getHexString(), 0.055);
     }
-    
-    scene.background = new THREE.Color(bgColor);
-  }, [weather, scene]);
+    scene.background = targetFogColor.clone();
+  }, [scene, targetFogColor]);
+
+  const moteTexture = useMemo(() => createParticleTexture('mote'), []);
+  const rainTexture = useMemo(() => createParticleTexture('rain'), []);
+
+  const activeTexture = useMemo(() => {
+    if (weather === 'rainy' || weather === 'storm') return rainTexture;
+    return moteTexture;
+  }, [weather, rainTexture, moteTexture]);
 
   // Generate initial particle positions
   const positions = useMemo(() => {
     const pos = new Float32Array(PARTICLE_COUNT * 3);
-    
+
     for (let i = 0; i < PARTICLE_COUNT; i++) {
       // Scatter in a box around the tree: X (-3 to 3), Y (-2 to 4), Z (-3 to 3)
       pos[i * 3] = (Math.random() - 0.5) * 6;
@@ -82,7 +116,7 @@ export const WeatherSystem: React.FC<WeatherSystemProps> = ({ weeklyChangePercen
     if (particlesRef.current) {
       const geo = particlesRef.current.geometry;
       const posAttr = geo.getAttribute('position') as THREE.BufferAttribute;
-      
+
       for (let i = 0; i < PARTICLE_COUNT; i++) {
         let x = posAttr.getX(i);
         let y = posAttr.getY(i);
@@ -94,7 +128,7 @@ export const WeatherSystem: React.FC<WeatherSystemProps> = ({ weeklyChangePercen
           y += delta * 0.18; // Float up
           x += Math.sin(time + i) * 0.004; // Sway
           z += Math.cos(time - i) * 0.004;
-          
+
           // Reset if it goes too high
           if (y > 3.5) {
             y = -1.8;
@@ -105,10 +139,10 @@ export const WeatherSystem: React.FC<WeatherSystemProps> = ({ weeklyChangePercen
           // Hard falling rain (fast down, wind push in storm)
           const fallSpeed = weather === 'storm' ? 7.0 : 4.0;
           const windPush = weather === 'storm' ? -0.8 : -0.15; // Windy angle
-          
+
           y -= fallSpeed * delta;
           x += windPush * delta;
-          
+
           // Reset if it hits ground or bounds
           if (y < -1.8 || x < -3.5) {
             y = 3.5 + Math.random() * 0.5;
@@ -129,7 +163,7 @@ export const WeatherSystem: React.FC<WeatherSystemProps> = ({ weeklyChangePercen
     // 2. Lightning Engine (Storm Mode only)
     if (weather === 'storm') {
       flashTimer.current -= delta;
-      
+
       // Trigger new lightning flash randomly (approx every 4-7 seconds)
       if (flashTimer.current <= 0) {
         flashTimer.current = 3.0 + Math.random() * 5.0;
@@ -142,11 +176,20 @@ export const WeatherSystem: React.FC<WeatherSystemProps> = ({ weeklyChangePercen
         if (flashIntensity.current < 0) flashIntensity.current = 0;
       }
 
-      // Update background color flash for lightning
+      // Flash the fog color to create a dramatic lightning flash throughout the scene
       const stormColor = new THREE.Color('#090d16');
       const flashColor = new THREE.Color('#ffffff');
       const currentColor = stormColor.clone().lerp(flashColor, flashIntensity.current * 0.95);
-      scene.background = currentColor;
+      if (scene.fog) {
+        scene.fog.color.copy(currentColor);
+      }
+      if (scene.background) {
+        if (scene.background instanceof THREE.Color) {
+          scene.background.copy(currentColor);
+        } else {
+          scene.background = currentColor.clone();
+        }
+      }
     } else {
       flashIntensity.current = 0;
     }
@@ -154,7 +197,7 @@ export const WeatherSystem: React.FC<WeatherSystemProps> = ({ weeklyChangePercen
     // Update light intensities smoothly
     if (ambientLightRef.current && dirLightRef.current) {
       let targetEnv = 0.5; // Default environment map intensity
-      
+
       if (weather === 'sunny') {
         // Balanced bright warm sun
         ambientLightRef.current.intensity = THREE.MathUtils.lerp(ambientLightRef.current.intensity, 0.25, 0.05);
@@ -177,28 +220,28 @@ export const WeatherSystem: React.FC<WeatherSystemProps> = ({ weeklyChangePercen
         // Dark midnight base but legible (with a faint moonlight/ambient glow)
         const baseAmbient = 0.08;
         const baseDir = 0.04;
-        
+
         // Add lightning flash contribution
         const lightningFlash = flashIntensity.current; // 0 to 1
-        
+
         ambientLightRef.current.intensity = THREE.MathUtils.lerp(
-          ambientLightRef.current.intensity, 
-          baseAmbient + lightningFlash * 0.85, 
+          ambientLightRef.current.intensity,
+          baseAmbient + lightningFlash * 0.85,
           0.15
         );
         dirLightRef.current.intensity = THREE.MathUtils.lerp(
-          dirLightRef.current.intensity, 
-          baseDir + lightningFlash * 2.0, 
+          dirLightRef.current.intensity,
+          baseDir + lightningFlash * 2.0,
           0.15
         );
-        
+
         // If lightning is flashing, use bright white/blue light
         if (lightningFlash > 0.05) {
           dirLightRef.current.color.set('#eef5ff');
         } else {
           dirLightRef.current.color.set('#485868');
         }
-        
+
         // Environment map dims down to a soft legible baseline, flashing up during lightning strike
         targetEnv = 0.08 + lightningFlash * 0.75;
       }
@@ -206,6 +249,23 @@ export const WeatherSystem: React.FC<WeatherSystemProps> = ({ weeklyChangePercen
       // Smoothly update environment map intensity if supported
       const currentEnv = (scene as any).environmentIntensity ?? 1.0;
       (scene as any).environmentIntensity = THREE.MathUtils.lerp(currentEnv, targetEnv, 0.05);
+    }
+
+    // Smoothly interpolate fog color and density in real-time
+    if (scene.fog && scene.fog instanceof THREE.FogExp2) {
+      if (weather !== 'storm' || flashIntensity.current === 0) {
+        scene.fog.color.lerp(targetFogColor, 0.04);
+      }
+      scene.fog.density = THREE.MathUtils.lerp(scene.fog.density, targetFogDensity, 0.04);
+
+      // Keep background color perfectly synchronized with fog color
+      if (scene.background) {
+        if (scene.background instanceof THREE.Color) {
+          scene.background.copy(scene.fog.color);
+        } else {
+          scene.background = scene.fog.color.clone();
+        }
+      }
     }
   });
 
@@ -217,9 +277,9 @@ export const WeatherSystem: React.FC<WeatherSystemProps> = ({ weeklyChangePercen
   }, [weather]);
 
   const particleSize = useMemo(() => {
-    if (weather === 'sunny') return 0.04;
-    if (weather === 'cloudy') return 0.005; // Tiny fog points
-    return 0.07; // Drops
+    if (weather === 'sunny') return 0.08; // slightly larger for soft glow texture
+    if (weather === 'cloudy') return 0.01;
+    return 0.18; // rain streaks
   }, [weather]);
 
   return (
@@ -235,13 +295,19 @@ export const WeatherSystem: React.FC<WeatherSystemProps> = ({ weeklyChangePercen
       <ambientLight ref={ambientLightRef} intensity={0.3} />
       <directionalLight
         ref={dirLightRef}
-        position={[4, 5, 2]}
+        position={[4.6, 6, 3]}
         intensity={1.0}
         castShadow
-        shadow-mapSize={[1024, 1024]}
-        shadow-bias={-0.0005}
+        shadow-mapSize={[2048, 2048]}
+        shadow-bias={-0.0002}
+        shadow-camera-left={-4}
+        shadow-camera-right={4}
+        shadow-camera-top={4}
+        shadow-camera-bottom={-4}
+        shadow-camera-near={0.1}
+        shadow-camera-far={25}
       />
-      
+
       {/* Fill Light to soften shadows */}
       <directionalLight position={[-4, 2, -2]} intensity={0.2} color="#a5c4f7" />
 
@@ -255,6 +321,7 @@ export const WeatherSystem: React.FC<WeatherSystemProps> = ({ weeklyChangePercen
             opacity={weather === 'sunny' ? 0.65 : 0.45}
             blending={THREE.AdditiveBlending}
             depthWrite={false}
+            map={activeTexture}
           />
         </points>
       )}

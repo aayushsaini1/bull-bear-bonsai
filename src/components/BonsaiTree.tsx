@@ -49,6 +49,7 @@ export const BonsaiTree: React.FC<BonsaiTreeProps> = ({
 }) => {
   // Load the GLB model from public folder
   const { scene } = useGLTF('/sakura.glb');
+  // const { scene } = useGLTF('/tree.glb');
 
   // Clone the scene and clone materials to prevent global texture leaks
   const { clonedScene, leafMeshes, branchMeshes } = useMemo(() => {
@@ -66,12 +67,22 @@ export const BonsaiTree: React.FC<BonsaiTreeProps> = ({
         const hash = child.name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
 
         // Map to leaves or branches
-        // Based on sakura.glb data:
-        // Leaf/Blossom meshes use materials named like "branch1.001", "branch2.002", etc.
-        // Trunk/Branch meshes use the material named "Material"
+        // Based on sakura.glb and tree.glb data:
+        // - sakura.glb: Leaf/Blossom meshes use materials named like "branch1.001", "branch2.002", etc.
+        // - tree.glb: Leaf mesh uses the material named "leaves", branch/trunk uses "branches".
         const matName = child.material && !Array.isArray(child.material) ? child.material.name : '';
 
-        if (matName.includes('branch')) {
+        let isLeaf = false;
+        if (matName === 'leaves') {
+          isLeaf = true;
+        } else if (matName === 'branches') {
+          isLeaf = false;
+        } else if (matName.includes('branch')) {
+          // For sakura.glb, branch materials are the leaves
+          isLeaf = true;
+        }
+
+        if (isLeaf) {
           // Clone leaf material and keep map for alpha shape, but override colors in shader
           if (child.material) {
             if (Array.isArray(child.material)) {
@@ -136,7 +147,7 @@ export const BonsaiTree: React.FC<BonsaiTreeProps> = ({
     const size = box.getSize(new THREE.Vector3());
     const maxDim = Math.max(size.x, size.y, size.z);
     // Target height is ~2.0 units in world space
-    const factor = 2.0 / maxDim;
+    const factor = (2.0 / maxDim) * 1.2;
     return [factor, factor, factor] as [number, number, number];
   }, [clonedScene]);
 
@@ -163,18 +174,24 @@ export const BonsaiTree: React.FC<BonsaiTreeProps> = ({
         mat.metalness = 0.1;
       }
 
-      // Smooth density scaling:
-      // Distribute thresholds deterministically using the hash value [0, 0.85]
-      const threshold = (hash % 85) / 100;
-      if (mappedDensity < threshold) {
-        mesh.scale.set(0, 0, 0); // Hide completely
-      } else {
-        // Smoothly grow leaf mesh to full size
-        const growthFactor = Math.max(0, Math.min(1, (mappedDensity - threshold) / 0.15));
-        // Scale leaf meshes slightly larger at high density for a much more lush appearance
-        const scaleMultiplier = 1.0 + mappedDensity * 0.45;
-        const finalScale = growthFactor * scaleMultiplier;
+      if (leafMeshes.length === 1) {
+        // If there's only one combined leaf mesh (like in tree.glb), scale the entire canopy directly based on density
+        const finalScale = 0.35 + mappedDensity * 0.75;
         mesh.scale.set(finalScale, finalScale, finalScale);
+      } else {
+        // Smooth density scaling for individual leaf meshes (e.g. sakura.glb):
+        // Distribute thresholds deterministically using the hash value [0, 0.85]
+        const threshold = (hash % 85) / 100;
+        if (mappedDensity < threshold) {
+          mesh.scale.set(0, 0, 0); // Hide completely
+        } else {
+          // Smoothly grow leaf mesh to full size
+          const growthFactor = Math.max(0, Math.min(1, (mappedDensity - threshold) / 0.15));
+          // Scale leaf meshes slightly larger at high density for a much more lush appearance
+          const scaleMultiplier = 1.0 + mappedDensity * 0.45;
+          const finalScale = growthFactor * scaleMultiplier;
+          mesh.scale.set(finalScale, finalScale, finalScale);
+        }
       }
 
       // Leaf flutter sway
@@ -193,26 +210,10 @@ export const BonsaiTree: React.FC<BonsaiTreeProps> = ({
 
   return (
     <group position={[0, -1.65, 0]}>
-      {/* Decorative Ceramic Bonsai Pot */}
-      <mesh receiveShadow castShadow position={[0, 0.175, 0]}>
-        <cylinderGeometry args={[0.7, 0.55, 0.35, 16]} />
-        <meshStandardMaterial
-          color="#222632" // Dark slate/stone gray pot
-          roughness={0.7}
-          metalness={0.2}
-        />
-      </mesh>
-
-      {/* Soil */}
-      <mesh receiveShadow position={[0, 0.33, 0]}>
-        <cylinderGeometry args={[0.67, 0.65, 0.05, 16]} />
-        <meshStandardMaterial color="#3a2e2b" roughness={0.8} />
-      </mesh>
-
-      {/* The custom loaded model primitive, scaled and slightly lowered into the soil */}
+      {/* The custom loaded model primitive, scaled and positioned directly on the ground */}
       <primitive
         object={clonedScene}
-        position={[0, 0.3, 0]}
+        position={[0, -0.04, 0]} // Slightly embedded into the ground soil organically
         scale={scaleFactor}
       />
     </group>
