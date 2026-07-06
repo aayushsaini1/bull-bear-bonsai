@@ -197,9 +197,9 @@ export const BonsaiTree: React.FC<BonsaiTreeProps> = ({
       <mesh receiveShadow castShadow position={[0, 0.175, 0]}>
         <cylinderGeometry args={[0.7, 0.55, 0.35, 16]} />
         <meshStandardMaterial
-          color="#ffffff" // White glossy ceramic
-          roughness={0.1}
-          metalness={0.7}
+          color="#222632" // Dark slate/stone gray pot
+          roughness={0.7}
+          metalness={0.2}
         />
       </mesh>
 

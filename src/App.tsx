@@ -42,8 +42,8 @@ function App() {
   useEffect(() => {
     loadData();
 
-    // Auto refresh every 20 minutes
-    const interval = setInterval(loadData, 20 * 60 * 1000);
+    // Auto refresh every 5 minutes
+    const interval = setInterval(loadData, 5 * 60 * 1000);
     return () => clearInterval(interval);
   }, [loadData]);
 
