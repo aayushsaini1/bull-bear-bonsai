@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
   TrendingUp,
-  TrendingDown,
   Sliders,
   Cloud,
   RefreshCw,
@@ -34,7 +33,6 @@ interface DashboardProps {
   isLoading: boolean;
   selectedAssetKey: 'nifty' | 'nasdaq' | 'mf';
   setSelectedAssetKey: (key: 'nifty' | 'nasdaq' | 'mf') => void;
-  lastRefreshed: Date | null;
 }
 
 // ── SparklineChart ────────────────────────────────────────────────────────────
@@ -169,7 +167,6 @@ export const Dashboard: React.FC<DashboardProps> = ({
   isLoading,
   selectedAssetKey,
   setSelectedAssetKey,
-  lastRefreshed,
 }) => {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [isSimulating, setIsSimulating] = useState(false);

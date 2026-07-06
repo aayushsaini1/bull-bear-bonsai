@@ -8,7 +8,6 @@ function App() {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isMockMode, setIsMockMode] = useState<boolean>(false);
   const [selectedAssetKey, setSelectedAssetKey] = useState<"nifty" | "nasdaq" | "mf">("nifty");
-  const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
 
   // Custom mock parameters for the interactive sliders
   const [mockParams, setMockParams] = useState({
@@ -23,7 +22,6 @@ function App() {
     try {
       const marketData = await getMarketData();
       setData(marketData);
-      setLastRefreshed(new Date());
 
       // Seed mock sliders with actual market values initially
       setMockParams({
@@ -75,7 +73,6 @@ function App() {
           isLoading={isLoading}
           selectedAssetKey={selectedAssetKey}
           setSelectedAssetKey={setSelectedAssetKey}
-          lastRefreshed={lastRefreshed}
         />
       </div>
     </div>
