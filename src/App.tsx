@@ -1,13 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
 import BonsaiCanvas from './components/BonsaiCanvas';
 import Dashboard from './components/Dashboard';
-import { getMarketData, MOCK_DATA, type TreeData } from './services/market';
+import { getMarketData, type TreeData } from './services/market';
 
 function App() {
-  const [data, setData] = useState<TreeData>(MOCK_DATA);
+  const [data, setData] = useState<TreeData | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isMockMode, setIsMockMode] = useState<boolean>(false);
-  const [selectedAssetKey, setSelectedAssetKey] = useState<"nifty" | "nasdaq" | "mf">("nifty");
+  const [selectedAssetKey, setSelectedAssetKey] = useState<"nifty" | "nasdaq" | "gold" | "btc">("nifty");
 
   // Custom mock parameters for the interactive sliders
   const [mockParams, setMockParams] = useState({
@@ -44,6 +44,17 @@ function App() {
     const interval = setInterval(loadData, 5 * 60 * 1000);
     return () => clearInterval(interval);
   }, [loadData]);
+
+  if (!data) {
+    return (
+      <div className="splash-screen">
+        <img src="/bull-bear-bonsai-logomark.png" alt="Bull-Bear Bonsai" className="splash-logo" />
+        <h1 className="splash-title">Bull-Bear Bonsai</h1>
+        <p className="splash-subtitle">Connecting to financial markets...</p>
+        <div className="splash-spinner" />
+      </div>
+    );
+  }
 
   // Determine current active values to feed the 3D model based on the selected asset
   const selectedAsset = data.assets[selectedAssetKey] || data.assets.nifty;

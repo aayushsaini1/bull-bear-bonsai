@@ -8,6 +8,7 @@ export interface AssetMetrics {
   fiftyTwoWeekLow: number;
   rangePositionRatio: number; // (current - low) / (high - low)
   isClosed: boolean;           // Tracks if the asset's primary market is closed
+  historicalPrices: number[];  // Last 5 closing prices for weekly charts
 }
 
 export interface TreeData {
@@ -17,7 +18,8 @@ export interface TreeData {
   assets: {
     nifty: AssetMetrics;
     nasdaq: AssetMetrics;
-    mf: AssetMetrics;
+    gold: AssetMetrics;
+    btc: AssetMetrics;
   };
   isMock: boolean;
 }
@@ -29,8 +31,8 @@ export function checkMarketClosed(symbol: string): boolean {
   const now = new Date();
   const utc = now.getTime() + now.getTimezoneOffset() * 60000;
 
-  if (symbol === "^NSEI") {
-    // Nifty 50: Monday-Friday, 9:15 AM - 3:30 PM IST (UTC+5:30)
+  if (symbol === "^NSEI" || symbol === "GOLDBEES.NS") {
+    // Nifty 50 & Gold ETF: Monday-Friday, 9:15 AM - 3:30 PM IST (UTC+5:30)
     const istTime = new Date(utc + 5.5 * 60 * 60 * 1000);
     const day = istTime.getDay();
     if (day === 0 || day === 6) return true; // Weekend
@@ -38,7 +40,7 @@ export function checkMarketClosed(symbol: string): boolean {
     return mins < (9 * 60 + 15) || mins > (15 * 60 + 30);
   }
   
-  if (symbol === "^IXIC") {
+  if (symbol === "NDAQ") {
     // Nasdaq: Monday-Friday, 9:30 AM - 4:00 PM EST/EDT
     // Convert to US East Coast time zone
     try {
@@ -58,14 +60,12 @@ export function checkMarketClosed(symbol: string): boolean {
     }
   }
   
-  // PPFAS Mutual Fund updates daily in the late evening on business days.
-  // It remains static (closed) outside weekday late evenings.
-  const istTime = new Date(utc + 5.5 * 60 * 60 * 1000);
-  const day = istTime.getDay();
-  if (day === 0 || day === 6) return true;
-  const hr = istTime.getHours();
-  // Active only between 8 PM and 11 PM when NAV is updated
-  return hr < 20 || hr >= 23;
+  if (symbol === "BTC-USD") {
+    // Bitcoin USD is open 24/7
+    return false;
+  }
+  
+  return false;
 }
 
 // Healthy default mock values in case APIs fail
@@ -77,35 +77,50 @@ export const MOCK_DATA: TreeData = {
     nifty: {
       name: "Nifty 50",
       symbol: "^NSEI",
-      currentPrice: 24320.50,
-      dailyChangePercent: 0.45,
+      currentPrice: 23962.80,
+      dailyChangePercent: 0.34,
       weeklyChangePercent: 1.25,
       fiftyTwoWeekHigh: 25078.00,
       fiftyTwoWeekLow: 19300.00,
-      rangePositionRatio: 0.87,
+      rangePositionRatio: 0.82,
       isClosed: checkMarketClosed("^NSEI"),
+      historicalPrices: [23810.5, 23902.1, 23785.4, 23912.0, 23962.8],
     },
     nasdaq: {
-      name: "Nasdaq Composite",
-      symbol: "^IXIC",
-      currentPrice: 19120.30,
-      dailyChangePercent: -0.15,
-      weeklyChangePercent: 0.60,
-      fiftyTwoWeekHigh: 20120.00,
-      fiftyTwoWeekLow: 14500.00,
-      rangePositionRatio: 0.82,
-      isClosed: checkMarketClosed("^IXIC"),
+      name: "Nasdaq, Inc.",
+      symbol: "NDAQ",
+      currentPrice: 87.43,
+      dailyChangePercent: 3.60,
+      weeklyChangePercent: 2.10,
+      fiftyTwoWeekHigh: 92.00,
+      fiftyTwoWeekLow: 58.50,
+      rangePositionRatio: 0.88,
+      isClosed: checkMarketClosed("NDAQ"),
+      historicalPrices: [84.15, 85.32, 84.90, 86.40, 87.43],
     },
-    mf: {
-      name: "Parag Parikh Flexi Cap Fund",
-      symbol: "122639",
-      currentPrice: 91.29,
-      dailyChangePercent: 0.75,
-      weeklyChangePercent: 1.60,
-      fiftyTwoWeekHigh: 95.00,
-      fiftyTwoWeekLow: 68.50,
-      rangePositionRatio: 0.86,
-      isClosed: checkMarketClosed("122639"),
+    gold: {
+      name: "Nippon India ETF Gold BeES",
+      symbol: "GOLDBEES.NS",
+      currentPrice: 118.42,
+      dailyChangePercent: 1.25,
+      weeklyChangePercent: 0.85,
+      fiftyTwoWeekHigh: 125.00,
+      fiftyTwoWeekLow: 95.00,
+      rangePositionRatio: 0.78,
+      isClosed: checkMarketClosed("GOLDBEES.NS"),
+      historicalPrices: [116.85, 117.40, 117.95, 118.10, 118.42],
+    },
+    btc: {
+      name: "Bitcoin USD",
+      symbol: "BTC-USD",
+      currentPrice: 63226.43,
+      dailyChangePercent: 1.60,
+      weeklyChangePercent: 0.40,
+      fiftyTwoWeekHigh: 73000.00,
+      fiftyTwoWeekLow: 38000.00,
+      rangePositionRatio: 0.72,
+      isClosed: checkMarketClosed("BTC-USD"),
+      historicalPrices: [61850.0, 62450.5, 61990.2, 62820.0, 63226.43],
     }
   },
   isMock: true
@@ -163,6 +178,9 @@ async function fetchYahooSymbol(symbol: string, name: string): Promise<AssetMetr
   const fiftyTwoWeekLow = Math.min(...prices);
   const rangePositionRatio = calculateRangeRatio(currentPrice, fiftyTwoWeekLow, fiftyTwoWeekHigh);
 
+  // Historical prices for the past 5 trading days
+  const historicalPrices = prices.slice(-5);
+
   return {
     name,
     symbol,
@@ -172,58 +190,8 @@ async function fetchYahooSymbol(symbol: string, name: string): Promise<AssetMetr
     fiftyTwoWeekHigh,
     fiftyTwoWeekLow,
     rangePositionRatio,
-    isClosed: checkMarketClosed(symbol)
-  };
-}
-
-/**
- * Fetches Mutual Fund data from mfapi.in
- */
-async function fetchMutualFund(schemeCode: string, name: string): Promise<AssetMetrics> {
-  const url = `https://api.mfapi.in/mf/${schemeCode}`;
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`Failed to fetch MF data for ${schemeCode}: ${response.statusText}`);
-  }
-
-  const json = await response.json();
-  const data = json.data as { date: string; nav: string }[];
-  if (!data || data.length === 0) {
-    throw new Error(`No data found for MF ${schemeCode}`);
-  }
-
-  // Parse NAVs (latest date is index 0)
-  const navs = data.map(d => parseFloat(d.nav)).filter(n => !isNaN(n));
-  if (navs.length === 0) {
-    throw new Error(`No valid NAVs found for MF ${schemeCode}`);
-  }
-
-  const currentPrice = navs[0];
-  
-  // Daily Change % (index 0 vs index 1)
-  const prevPrice = navs.length > 1 ? navs[1] : currentPrice;
-  const dailyChangePercent = ((currentPrice - prevPrice) / prevPrice) * 100;
-
-  // Weekly Change % (approx 5 business days ago)
-  const weeklyPrevPrice = navs.length > 5 ? navs[5] : navs[navs.length - 1];
-  const weeklyChangePercent = ((currentPrice - weeklyPrevPrice) / weeklyPrevPrice) * 100;
-
-  // 52-Week High / Low (approx 250 business days)
-  const trailingYearNavs = navs.slice(0, 250);
-  const fiftyTwoWeekHigh = Math.max(...trailingYearNavs);
-  const fiftyTwoWeekLow = Math.min(...trailingYearNavs);
-  const rangePositionRatio = calculateRangeRatio(currentPrice, fiftyTwoWeekLow, fiftyTwoWeekHigh);
-
-  return {
-    name,
-    symbol: schemeCode,
-    currentPrice,
-    dailyChangePercent,
-    weeklyChangePercent,
-    fiftyTwoWeekHigh,
-    fiftyTwoWeekLow,
-    rangePositionRatio,
-    isClosed: checkMarketClosed(schemeCode)
+    isClosed: checkMarketClosed(symbol),
+    historicalPrices
   };
 }
 
@@ -233,56 +201,32 @@ async function fetchMutualFund(schemeCode: string, name: string): Promise<AssetM
 export async function getMarketData(): Promise<TreeData> {
   try {
     // Run fetches in parallel
-    const [nifty, nasdaq, mf] = await Promise.all([
+    const [nifty, nasdaq, gold, btc] = await Promise.all([
       fetchYahooSymbol("^NSEI", "Nifty 50"),
-      fetchYahooSymbol("^IXIC", "Nasdaq Composite"),
-      fetchMutualFund("122639", "Parag Parikh Flexi Cap Fund")
+      fetchYahooSymbol("NDAQ", "Nasdaq, Inc."),
+      fetchYahooSymbol("GOLDBEES.NS", "Nippon India ETF Gold BeES"),
+      fetchYahooSymbol("BTC-USD", "Bitcoin USD")
     ]);
 
     // Calculations based on PRD specifications:
     // Leaves Color: average of daily % changes
-    const dailyChangePercent = (nifty.dailyChangePercent + nasdaq.dailyChangePercent + mf.dailyChangePercent) / 3;
+    const dailyChangePercent = (nifty.dailyChangePercent + nasdaq.dailyChangePercent + gold.dailyChangePercent + btc.dailyChangePercent) / 4;
 
     // Weather/Wind: average of weekly % changes
-    const weeklyChangePercent = (nifty.weeklyChangePercent + nasdaq.weeklyChangePercent + mf.weeklyChangePercent) / 3;
+    const weeklyChangePercent = (nifty.weeklyChangePercent + nasdaq.weeklyChangePercent + gold.weeklyChangePercent + btc.weeklyChangePercent) / 4;
 
     // Leaf Density: average of 52-week position range
-    const leafDensity = (nifty.rangePositionRatio + nasdaq.rangePositionRatio + mf.rangePositionRatio) / 3;
+    const leafDensity = (nifty.rangePositionRatio + nasdaq.rangePositionRatio + gold.rangePositionRatio + btc.rangePositionRatio) / 4;
 
     return {
       dailyChangePercent,
       weeklyChangePercent,
       leafDensity,
-      assets: { nifty, nasdaq, mf },
+      assets: { nifty, nasdaq, gold, btc },
       isMock: false
     };
   } catch (error) {
     console.warn("Error fetching real market data, falling back to mock data:", error);
-    // If Yahoo blocks us but MF works, we could still fall back to mock for Nifty/Nasdaq
-    // Let's attempt to fetch MF data individually to see if it works, otherwise return complete mock
-    try {
-      const mf = await fetchMutualFund("122639", "Parag Parikh Flexi Cap Fund");
-      const mockNifty = MOCK_DATA.assets.nifty;
-      const mockNasdaq = MOCK_DATA.assets.nasdaq;
-      
-      const dailyChangePercent = (mockNifty.dailyChangePercent + mockNasdaq.dailyChangePercent + mf.dailyChangePercent) / 3;
-      const weeklyChangePercent = (mockNifty.weeklyChangePercent + mockNasdaq.weeklyChangePercent + mf.weeklyChangePercent) / 3;
-      const leafDensity = (mockNifty.rangePositionRatio + mockNasdaq.rangePositionRatio + mf.rangePositionRatio) / 3;
-
-      return {
-        dailyChangePercent,
-        weeklyChangePercent,
-        leafDensity,
-        assets: {
-          nifty: mockNifty,
-          nasdaq: mockNasdaq,
-          mf
-        },
-        isMock: true // Still flag it as using some mock since indices are mock
-      };
-    } catch (e) {
-      // Total fallback
-      return MOCK_DATA;
-    }
+    return MOCK_DATA;
   }
 }

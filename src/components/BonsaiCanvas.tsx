@@ -468,6 +468,51 @@ const Ground: React.FC = () => {
   );
 };
 
+const FPSCounter: React.FC = () => {
+  const containerRef = useRef<HTMLSpanElement>(null);
+  const dotRef = useRef<HTMLSpanElement>(null);
+
+  useEffect(() => {
+    let frameCount = 0;
+    let lastTime = performance.now();
+    let animId: number;
+
+    const tick = () => {
+      frameCount++;
+      const now = performance.now();
+      if (now >= lastTime + 1000) {
+        const fps = Math.round((frameCount * 1000) / (now - lastTime));
+        if (containerRef.current) {
+          containerRef.current.textContent = `${fps} FPS`;
+          
+          let color = '#10b981'; // green
+          if (fps < 30) color = '#ef4444'; // red
+          else if (fps < 50) color = '#f59e0b'; // amber
+          
+          containerRef.current.style.color = color;
+          if (dotRef.current) {
+            dotRef.current.style.backgroundColor = color;
+            dotRef.current.style.boxShadow = `0 0 6px ${color}`;
+          }
+        }
+        frameCount = 0;
+        lastTime = now;
+      }
+      animId = requestAnimationFrame(tick);
+    };
+
+    animId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(animId);
+  }, []);
+
+  return (
+    <div className="fps-counter-badge">
+      <span ref={dotRef} className="fps-dot" />
+      <span ref={containerRef}>-- FPS</span>
+    </div>
+  );
+};
+
 export const BonsaiCanvas: React.FC<BonsaiCanvasProps> = ({
   dailyChangePercent,
   weeklyChangePercent,
@@ -477,7 +522,7 @@ export const BonsaiCanvas: React.FC<BonsaiCanvasProps> = ({
   const skyParams = useMemo(() => getSkyParams(weather), [weather]);
 
   return (
-    <div className="canvas-container">
+    <div className="canvas-container" style={{ position: 'relative' }}>
       <Canvas
         shadows
         camera={{ position: [0, 0.7, 4.5], fov: 45, near: 0.1, far: 2000 }}
@@ -556,6 +601,7 @@ export const BonsaiCanvas: React.FC<BonsaiCanvasProps> = ({
           </EffectComposer>
         </Suspense>
       </Canvas>
+      <FPSCounter />
     </div>
   );
 };

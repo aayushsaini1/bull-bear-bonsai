@@ -31,9 +31,52 @@ interface DashboardProps {
   }>>;
   onRefresh: () => void;
   isLoading: boolean;
-  selectedAssetKey: 'nifty' | 'nasdaq' | 'mf';
-  setSelectedAssetKey: (key: 'nifty' | 'nasdaq' | 'mf') => void;
+  selectedAssetKey: 'nifty' | 'nasdaq' | 'gold' | 'btc';
+  setSelectedAssetKey: (key: 'nifty' | 'nasdaq' | 'gold' | 'btc') => void;
 }
+
+// ── HistoricalChart ───────────────────────────────────────────────────────────
+
+const HistoricalChart: React.FC<{
+  prices: number[];
+  isPositive: boolean;
+  width?: number;
+  height?: number;
+}> = ({ prices, isPositive, width = 240, height = 45 }) => {
+  if (!prices || prices.length < 2) return null;
+
+  const min = Math.min(...prices);
+  const max = Math.max(...prices);
+  const range = max - min === 0 ? 1 : max - min;
+
+  // Map each price to SVG coordinate
+  const pts = prices.map((price, index) => {
+    const x = (index / (prices.length - 1)) * width;
+    const y = height - ((price - min) / range) * (height - 8) - 4;
+    return { x, y };
+  });
+
+  const pathD = pts
+    .map((pt, i) => `${i === 0 ? 'M' : 'L'} ${pt.x.toFixed(1)} ${pt.y.toFixed(1)}`)
+    .join(' ');
+
+  const areaD = `${pathD} L ${width} ${height} L 0 ${height} Z`;
+  const lineColor = isPositive ? '#22c55e' : '#ef4444';
+  const gradientId = `hist-grad-${Math.random()}`;
+
+  return (
+    <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" style={{ display: 'block', overflow: 'visible' }}>
+      <defs>
+        <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={lineColor} stopOpacity="0.22" />
+          <stop offset="100%" stopColor={lineColor} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <path d={areaD} fill={`url(#${gradientId})`} />
+      <path d={pathD} fill="none" stroke={lineColor} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+};
 
 // ── SparklineChart ────────────────────────────────────────────────────────────
 
@@ -129,19 +172,15 @@ function getVolatilityInfo(data: TreeData) {
   const avgAbs =
     (Math.abs(data.assets.nifty.dailyChangePercent) +
       Math.abs(data.assets.nasdaq.dailyChangePercent) +
-      Math.abs(data.assets.mf.dailyChangePercent)) /
-    3;
+      Math.abs(data.assets.gold.dailyChangePercent) +
+      Math.abs(data.assets.btc.dailyChangePercent)) /
+    4;
   if (avgAbs < 0.4) return { text: 'Low',      color: 'green'  };
   if (avgAbs < 1.2) return { text: 'Moderate', color: 'yellow' };
   return              { text: 'High',         color: 'red'    };
 }
 
-function getCorrelationLabel(ratio: number) {
-  if (ratio > 0.72) return 'Strong Positive';
-  if (ratio > 0.52) return 'Moderate Positive';
-  if (ratio > 0.35) return 'Neutral';
-  return 'Negative';
-}
+
 
 function getMarketOverviewText(data: TreeData) {
   const d = data.dailyChangePercent;
@@ -154,6 +193,13 @@ function getMarketOverviewText(data: TreeData) {
     return 'Weekly trend stays positive despite today\'s pullback. Long-term momentum remains intact.';
   return 'Markets facing broad-based pressure. Risk-off sentiment dominates across major indices.';
 }
+
+const ASSET_DETAILS: Record<string, { subtitle: string; iconType: 'letter' | 'nasdaq' | 'bitcoin'; letter?: string; iconBgColor?: string }> = {
+  nifty: { subtitle: '^NSEI · INDEX', iconType: 'letter', letter: 'N', iconBgColor: 'rgba(255, 255, 255, 0.08)' },
+  nasdaq: { subtitle: 'NDAQ · NASDAQ', iconType: 'nasdaq' },
+  gold: { subtitle: 'GOLDBEES · NSE', iconType: 'letter', letter: 'G', iconBgColor: 'rgba(255, 255, 255, 0.08)' },
+  btc: { subtitle: 'BTCUSD · CRYPTO', iconType: 'bitcoin' },
+};
 
 // ── Dashboard component ───────────────────────────────────────────────────────
 
@@ -182,7 +228,6 @@ export const Dashboard: React.FC<DashboardProps> = ({
           .toLocaleTimeString('en-IN', {
             hour: '2-digit',
             minute: '2-digit',
-            second: '2-digit',
             timeZone: 'Asia/Kolkata',
             hour12: true,
           })
@@ -193,6 +238,22 @@ export const Dashboard: React.FC<DashboardProps> = ({
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
   }, []);
+
+  const [refreshCooldown, setRefreshCooldown] = useState(0);
+
+  const handleRefreshWithCooldown = () => {
+    if (refreshCooldown > 0 || isLoading || isMockMode) return;
+    onRefresh();
+    setRefreshCooldown(10);
+  };
+
+  useEffect(() => {
+    if (refreshCooldown <= 0) return;
+    const timer = setInterval(() => {
+      setRefreshCooldown(prev => prev - 1);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [refreshCooldown]);
 
   // Dynamic market simulation in mock mode
   React.useEffect(() => {
@@ -226,17 +287,14 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
   const formatPrice = (value: number, symbol: string) => {
     if (symbol === '^NSEI')
+      return value.toLocaleString('en-IN', { minimumFractionDigits: 1, maximumFractionDigits: 2 });
+    if (symbol === 'GOLDBEES.NS')
       return `₹${value.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-    if (symbol === '^IXIC')
+    if (symbol === 'NDAQ')
       return `$${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-    return `₹${value.toFixed(2)}`;
-  };
-
-  const cleanSymbol = (symbol: string) => {
-    if (symbol === '^NSEI') return 'NSEI';
-    if (symbol === '^IXIC') return 'IXIC';
-    if (symbol === '122639') return 'MUTUAL FUND';
-    return symbol;
+    if (symbol === 'BTC-USD')
+      return `$${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    return value.toLocaleString();
   };
 
   // Right-panel derived data
@@ -275,79 +333,173 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
           {/* Header */}
           <div className="sidebar-header">
-            <div className="flex-between w-full">
-              <div className="app-logo-container">
-                <img src="/bull-bear-bonsai-main.png" alt="Bull-Bear Bonsai" className="app-logo" />
+            <div className="flex-between w-full" style={{ alignItems: 'center', marginBottom: '8px' }}>
+              <div className="app-logo-container" style={{ display: 'flex', alignItems: 'center', gap: '8px', maxWidth: 'none' }}>
+                <img src="/bull-bear-bonsai-logomark.png" alt="Bull-Bear Bonsai" className="app-logo" />
+                <span className="app-title-text">Bull Bear Bonsai</span>
               </div>
-              {/* Refresh button */}
-              <button
-                className={`refresh-btn ${isLoading ? 'spinning' : ''}`}
-                onClick={onRefresh}
-                disabled={isMockMode || isLoading}
-                title={isMockMode ? 'Refresh disabled in Dev Mode' : 'Refresh Market Feed'}
-              >
-                <RefreshCw size={14} />
-              </button>
             </div>
 
-            {/* Subtitle */}
-            <p className="app-subtitle">Markets breathe. We grow.</p>
-
-            {/* Live clock badge */}
-            <div className="live-clock-badge">
-              <span className={`live-dot ${isMockMode ? 'dev-dot' : ''}`} />
-              <span className={`live-label ${isMockMode ? 'dev-label' : ''}`}>
-                {isMockMode ? 'DEV' : 'LIVE'}
-              </span>
+            {/* Time and Refresh inline */}
+            <div className="time-refresh-container">
               <span className="live-time">{liveTime}</span>
+              <button
+                className={`refresh-btn-inline ${isLoading || refreshCooldown > 0 ? 'disabled' : ''} ${isLoading ? 'spinning' : ''}`}
+                onClick={handleRefreshWithCooldown}
+                disabled={isMockMode || isLoading || refreshCooldown > 0}
+                title={
+                  isMockMode 
+                    ? 'Refresh disabled in Dev Mode' 
+                    : refreshCooldown > 0 
+                      ? `Cooldown: wait ${refreshCooldown}s` 
+                      : 'Refresh Market Feed'
+                }
+              >
+                <RefreshCw size={11} />
+                {refreshCooldown > 0 && <span className="cooldown-text">{refreshCooldown}s</span>}
+              </button>
             </div>
           </div>
 
           {/* Section label */}
           <div className="sidebar-section-title">Market Assets</div>
 
-          {/* ── Asset cards with sparklines ── */}
+          {/* ── Asset cards stack ── */}
           <div className="sidebar-indices-container">
             {Object.entries(data.assets).map(([key, asset]) => {
               const isSelected = selectedAssetKey === key;
               const isPositive = asset.dailyChangePercent >= 0;
+              const details = ASSET_DETAILS[key] || { subtitle: asset.symbol, iconType: 'letter', letter: 'S' };
               return (
                 <div
                   key={asset.symbol}
-                  className={`glass-card index-small-card ${isSelected ? (isPositive ? 'selected-positive' : 'selected-negative') : ''}`}
-                  onClick={() => setSelectedAssetKey(key as 'nifty' | 'nasdaq' | 'mf')}
+                  className={`stock-card-row ${isSelected ? (isPositive ? 'selected-positive' : 'selected-negative') : ''} ${isSelected ? 'expanded' : ''}`}
+                  onClick={() => setSelectedAssetKey(key as 'nifty' | 'nasdaq' | 'gold' | 'btc')}
                   style={{ cursor: 'pointer' }}
                 >
-                  <div className="card-header">
-                    <span className="asset-name">{asset.name}</span>
-                    <span className="asset-tag">{cleanSymbol(asset.symbol)}</span>
-                  </div>
+                  <div className="stock-card-main-info">
+                    <div className="stock-card-left">
+                      {details.iconType === 'letter' && (
+                        <div className="stock-card-icon letter-icon" style={{ backgroundColor: details.iconBgColor }}>
+                          {details.letter}
+                        </div>
+                      )}
+                      {details.iconType === 'nasdaq' && (
+                        <div className="stock-card-icon nasdaq-icon">
+                          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M6 18L14 6" stroke="#ffffff" strokeWidth="3" strokeLinecap="round" />
+                            <path d="M11 18L19 6" stroke="#00c3ff" strokeWidth="3" strokeLinecap="round" />
+                          </svg>
+                        </div>
+                      )}
+                      {details.iconType === 'bitcoin' && (
+                        <div className="stock-card-icon bitcoin-icon">
+                          ₿
+                        </div>
+                      )}
 
-                  <div className="card-body">
-                    <div className="asset-price">{formatPrice(asset.currentPrice, asset.symbol)}</div>
-                    <div className={`asset-change ${isPositive ? 'positive' : 'negative'}`}>
-                      {isPositive ? '↗' : '↘'}{' '}
-                      <span className="change-text">
-                        {Math.abs(asset.dailyChangePercent).toFixed(2)}%
-                      </span>
+                      <div className="stock-card-names">
+                        <div className="stock-card-name">
+                          {asset.name.length > 25 ? `${asset.name.substring(0, 22)}...` : asset.name}
+                        </div>
+                        <div className="stock-card-subtitle">{details.subtitle}</div>
+                      </div>
+                    </div>
+
+                    <div className="stock-card-right">
+                      <div className="stock-card-price">{formatPrice(asset.currentPrice, asset.symbol)}</div>
+                      <div className={`stock-card-change ${isPositive ? 'positive' : 'negative'}`}>
+                        {isPositive ? '+' : ''}{asset.dailyChangePercent.toFixed(2)}%
+                      </div>
                     </div>
                   </div>
 
-                  {/* Mini sparkline */}
-                  <div className="sparkline-wrapper">
-                    <SparklineChart
-                      assetKey={key}
-                      dailyChange={asset.dailyChangePercent}
-                      weeklyChange={asset.weeklyChangePercent}
-                    />
+                  <div className="stock-card-expanded-content">
+                    <div className="stock-card-chart-title">Past 5 Days Trend</div>
+                    <div className="stock-card-chart-container">
+                      <HistoricalChart prices={asset.historicalPrices} isPositive={isPositive} />
+                    </div>
+                    <div className="stock-card-range-stats">
+                      <div className="range-stat-item">
+                        <span className="stat-label">52W Low</span>
+                        <span className="stat-val">{formatPrice(asset.fiftyTwoWeekLow, asset.symbol)}</span>
+                      </div>
+                      <div className="range-stat-item">
+                        <span className="stat-label">52W High</span>
+                        <span className="stat-val">{formatPrice(asset.fiftyTwoWeekHigh, asset.symbol)}</span>
+                      </div>
+                    </div>
                   </div>
-
-                  {asset.isClosed && (
-                    <div className="market-closed-badge">Markets Closed</div>
-                  )}
                 </div>
               );
             })}
+          </div>
+
+          {/* Market Overview Card */}
+          <div className="sidebar-overview-card" style={{ marginTop: '16px' }}>
+            <div className="sidebar-card-header">
+              <TrendingUp size={13} className="sidebar-card-icon" style={{ color: 'var(--color-indigo)' }} />
+              <span className="sidebar-card-title">Market Conditions</span>
+            </div>
+            <p className="overview-body-text">{overviewText}</p>
+            <div className="overview-footer" style={{ marginTop: '10px' }}>
+              <div className="overview-sparkline">
+                <SparklineChart
+                  assetKey="overview"
+                  dailyChange={data.dailyChangePercent}
+                  weeklyChange={data.weeklyChangePercent}
+                  width={80}
+                  height={36}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Tree Insights Card */}
+          <div className="sidebar-insights-card" style={{ marginTop: '16px', marginBottom: '16px' }}>
+            <div className="sidebar-card-header">
+              <Leaf size={13} className="sidebar-card-icon" style={{ color: 'var(--color-indigo)' }} />
+              <span className="sidebar-card-title">Tree Insights</span>
+            </div>
+            <div className="tree-insights-list" style={{ marginTop: '6px' }}>
+              <div className="insight-row">
+                <div className="insight-label">
+                  <Leaf size={13} className="insight-icon" />
+                  <span>Leaf Color</span>
+                </div>
+                <span className={`insight-value insight-${leafColorInfo.color}`}>
+                  • {leafColorInfo.text}
+                </span>
+              </div>
+
+              <div className="insight-row">
+                <div className="insight-label">
+                  <Wind size={13} className="insight-icon" />
+                  <span>Wind Speed</span>
+                </div>
+                <span className="insight-value insight-muted">{windKmh} km/h</span>
+              </div>
+
+              <div className="insight-row">
+                <div className="insight-label">
+                  <Cloud size={13} className="insight-icon" />
+                  <span>Weather</span>
+                </div>
+                <span className={`insight-value insight-${weatherInfo.color}`}>
+                  • {weatherInfo.text}
+                </span>
+              </div>
+
+              <div className="insight-row">
+                <div className="insight-label">
+                  <Activity size={13} className="insight-icon" />
+                  <span>Volatility</span>
+                </div>
+                <span className={`insight-value insight-${volatilityInfo.color}`}>
+                  • {volatilityInfo.text}
+                </span>
+              </div>
+            </div>
           </div>
 
           {/* Footer – Dev Mode trigger */}
@@ -518,105 +670,6 @@ export const Dashboard: React.FC<DashboardProps> = ({
           </div>
 
         </div>{/* end .sidebar-dev-overlay */}
-
-      </aside>
-
-      {/* ═══════════════ RIGHT PANEL HUD ═══════════════ */}
-      <aside className="right-panel-hud">
-
-        {/* Market Overview */}
-        <div className="right-card">
-          <div className="right-card-header">
-            <TrendingUp size={13} className="right-card-icon" />
-            <span className="right-card-title">Market Overview</span>
-          </div>
-          <p className="overview-body-text">{overviewText}</p>
-          <div className="overview-footer">
-            <span className="overview-link">See full report →</span>
-            <div className="overview-sparkline">
-              <SparklineChart
-                assetKey="overview"
-                dailyChange={data.dailyChangePercent}
-                weeklyChange={data.weeklyChangePercent}
-                width={80}
-                height={36}
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Tree Insights */}
-        <div className="right-card">
-          <div className="right-card-header">
-            <span className="right-card-title">Tree Insights</span>
-          </div>
-          <div className="tree-insights-list">
-            <div className="insight-row">
-              <div className="insight-label">
-                <Leaf size={13} className="insight-icon" />
-                <span>Leaf Color</span>
-              </div>
-              <span className={`insight-value insight-${leafColorInfo.color}`}>
-                • {leafColorInfo.text}
-              </span>
-            </div>
-
-            <div className="insight-row">
-              <div className="insight-label">
-                <Wind size={13} className="insight-icon" />
-                <span>Wind Speed</span>
-              </div>
-              <span className="insight-value insight-muted">{windKmh} km/h</span>
-            </div>
-
-            <div className="insight-row">
-              <div className="insight-label">
-                <Cloud size={13} className="insight-icon" />
-                <span>Weather</span>
-              </div>
-              <span className={`insight-value insight-${weatherInfo.color}`}>
-                • {weatherInfo.text}
-              </span>
-            </div>
-
-            <div className="insight-row">
-              <div className="insight-label">
-                <Activity size={13} className="insight-icon" />
-                <span>Volatility</span>
-              </div>
-              <span className={`insight-value insight-${volatilityInfo.color}`}>
-                • {volatilityInfo.text}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Performance Correlation */}
-        <div className="right-card">
-          <div className="right-card-header">
-            <span className="right-card-title">Performance Correlation</span>
-          </div>
-          <div className="correlation-list">
-            {Object.entries(data.assets).map(([key, asset]) => (
-              <div key={key} className="correlation-row">
-                <div className="correlation-meta">
-                  <span className="correlation-name">{asset.name}</span>
-                  <span className="correlation-label">
-                    {getCorrelationLabel(asset.rangePositionRatio)}
-                  </span>
-                </div>
-                <div className="correlation-track">
-                  <div
-                    className="correlation-fill"
-                    style={{ width: `${Math.round(asset.rangePositionRatio * 100)}%` }}
-                  >
-                    <div className="correlation-dot" />
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
 
       </aside>
     </>
