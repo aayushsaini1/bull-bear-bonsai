@@ -3,6 +3,8 @@ import { useFrame } from '@react-three/fiber';
 import { useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
 
+useGLTF.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.5/');
+
 interface BonsaiTreeProps {
   dailyChangePercent: number;    // Leaves color: -1.5% (red/brown) -> 0% (yellow) -> +1.5% (green)
   weeklyChangePercent: number;   // Weather/Wind sway: sunny (soft) -> cloudy (still) -> rainy (moderate) -> storm (heavy)

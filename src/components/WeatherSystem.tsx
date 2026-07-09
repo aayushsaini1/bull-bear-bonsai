@@ -199,11 +199,11 @@ export const WeatherSystem: React.FC<WeatherSystemProps> = ({ weeklyChangePercen
       let targetEnv = 0.5; // Default environment map intensity
 
       if (weather === 'sunny') {
-        // Balanced bright warm sun
-        ambientLightRef.current.intensity = THREE.MathUtils.lerp(ambientLightRef.current.intensity, 0.25, 0.05);
-        dirLightRef.current.intensity = THREE.MathUtils.lerp(dirLightRef.current.intensity, 0.8, 0.05);
-        dirLightRef.current.color.set('#fffaed');
-        targetEnv = 0.55;
+        // Bright golden hour warm sun
+        ambientLightRef.current.intensity = THREE.MathUtils.lerp(ambientLightRef.current.intensity, 0.35, 0.05);
+        dirLightRef.current.intensity = THREE.MathUtils.lerp(dirLightRef.current.intensity, 1.3, 0.05);
+        dirLightRef.current.color.set('#ffd066');
+        targetEnv = 0.65;
       } else if (weather === 'cloudy') {
         // Diffused overcast lighting
         ambientLightRef.current.intensity = THREE.MathUtils.lerp(ambientLightRef.current.intensity, 0.25, 0.05);
@@ -217,9 +217,9 @@ export const WeatherSystem: React.FC<WeatherSystemProps> = ({ weeklyChangePercen
         dirLightRef.current.color.set('#95a8be');
         targetEnv = 0.2;
       } else if (weather === 'storm') {
-        // Dark midnight base but legible (with a faint moonlight/ambient glow)
-        const baseAmbient = 0.08;
-        const baseDir = 0.04;
+        // Dark midnight base but with cool silver moonlight shadows when not flashing
+        const baseAmbient = 0.09;
+        const baseDir = 0.22;
 
         // Add lightning flash contribution
         const lightningFlash = flashIntensity.current; // 0 to 1
@@ -235,14 +235,14 @@ export const WeatherSystem: React.FC<WeatherSystemProps> = ({ weeklyChangePercen
           0.15
         );
 
-        // If lightning is flashing, use bright white/blue light
+        // If lightning is flashing, use bright white/blue light, otherwise silver-blue moonlight
         if (lightningFlash > 0.05) {
           dirLightRef.current.color.set('#eef5ff');
         } else {
-          dirLightRef.current.color.set('#485868');
+          dirLightRef.current.color.set('#68809e');
         }
 
-        // Environment map dims down to a soft legible baseline, flashing up during lightning strike
+        // Environment map dims down, flashing up during lightning strike
         targetEnv = 0.08 + lightningFlash * 0.75;
       }
 
@@ -310,6 +310,22 @@ export const WeatherSystem: React.FC<WeatherSystemProps> = ({ weeklyChangePercen
 
       {/* Fill Light to soften shadows */}
       <directionalLight position={[-4, 2, -2]} intensity={0.2} color="#a5c4f7" />
+
+      {/* Sun Mesh (Sunny Weather Only) */}
+      {weather === 'sunny' && (
+        <mesh position={[12, 10, 5]}>
+          <sphereGeometry args={[1.5, 32, 32]} />
+          <meshBasicMaterial color="#ffe48f" toneMapped={false} />
+        </mesh>
+      )}
+
+      {/* Moon Mesh (Stormy Weather Only) */}
+      {weather === 'storm' && (
+        <mesh position={[-10, 9, -8]}>
+          <sphereGeometry args={[0.9, 32, 32]} />
+          <meshBasicMaterial color="#cde0ff" toneMapped={false} />
+        </mesh>
+      )}
 
       {/* Particle System for Rain/Pollen */}
       {weather !== 'cloudy' && (

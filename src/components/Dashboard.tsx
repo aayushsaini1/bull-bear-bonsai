@@ -218,6 +218,33 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const [isSimulating, setIsSimulating] = useState(false);
   const simulationInterval = React.useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Mobile bottom sheet state and swipe handlers
+  const [isSheetExpanded, setIsSheetExpanded] = useState(false);
+  const touchStartY = React.useRef<number>(0);
+  const currentY = React.useRef<number>(0);
+  const [isDragging, setIsDragging] = useState(false);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartY.current = e.touches[0].clientY;
+    setIsDragging(true);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!isDragging) return;
+    const deltaY = e.touches[0].clientY - touchStartY.current;
+    currentY.current = deltaY;
+  };
+
+  const handleTouchEnd = () => {
+    setIsDragging(false);
+    if (currentY.current < -40) {
+      setIsSheetExpanded(true);
+    } else if (currentY.current > 40) {
+      setIsSheetExpanded(false);
+    }
+    currentY.current = 0;
+  };
+
   // Live clock — ticks every second, displayed as IST
   const [liveTime, setLiveTime] = useState('');
   useEffect(() => {
@@ -323,6 +350,76 @@ export const Dashboard: React.FC<DashboardProps> = ({
     </span>
   );
 
+  const renderAssetCards = () => {
+    return Object.entries(data.assets).map(([key, asset]) => {
+      const isSelected = selectedAssetKey === key;
+      const isPositive = asset.dailyChangePercent >= 0;
+      const details = ASSET_DETAILS[key] || { subtitle: asset.symbol, iconType: 'letter', letter: 'S' };
+      return (
+        <div
+          key={asset.symbol}
+          className={`stock-card-row ${isSelected ? (isPositive ? 'selected-positive' : 'selected-negative') : ''} ${isSelected ? 'expanded' : ''}`}
+          onClick={() => setSelectedAssetKey(key as 'nifty' | 'nasdaq' | 'gold' | 'btc')}
+          style={{ cursor: 'pointer' }}
+        >
+          <div className="stock-card-main-info">
+            <div className="stock-card-left">
+              {details.iconType === 'letter' && (
+                <div className="stock-card-icon letter-icon" style={{ backgroundColor: details.iconBgColor }}>
+                  {details.letter}
+                </div>
+              )}
+              {details.iconType === 'nasdaq' && (
+                <div className="stock-card-icon nasdaq-icon">
+                  <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M6 18L14 6" stroke="#ffffff" strokeWidth="3" strokeLinecap="round" />
+                    <path d="M11 18L19 6" stroke="#00c3ff" strokeWidth="3" strokeLinecap="round" />
+                  </svg>
+                </div>
+              )}
+              {details.iconType === 'bitcoin' && (
+                <div className="stock-card-icon bitcoin-icon">
+                  ₿
+                </div>
+              )}
+
+              <div className="stock-card-names">
+                <div className="stock-card-name">
+                  {asset.name.length > 25 ? `${asset.name.substring(0, 22)}...` : asset.name}
+                </div>
+                <div className="stock-card-subtitle">{details.subtitle}</div>
+              </div>
+            </div>
+
+            <div className="stock-card-right">
+              <div className="stock-card-price">{formatPrice(asset.currentPrice, asset.symbol)}</div>
+              <div className={`stock-card-change ${isPositive ? 'positive' : 'negative'}`}>
+                {isPositive ? '+' : ''}{asset.dailyChangePercent.toFixed(2)}%
+              </div>
+            </div>
+          </div>
+
+          <div className="stock-card-expanded-content">
+            <div className="stock-card-chart-title">Past 5 Days Trend</div>
+            <div className="stock-card-chart-container">
+              <HistoricalChart prices={asset.historicalPrices} isPositive={isPositive} />
+            </div>
+            <div className="stock-card-range-stats">
+              <div className="range-stat-item">
+                <span className="stat-label">52W Low</span>
+                <span className="stat-val">{formatPrice(asset.fiftyTwoWeekLow, asset.symbol)}</span>
+              </div>
+              <div className="range-stat-item">
+                <span className="stat-label">52W High</span>
+                <span className="stat-val">{formatPrice(asset.fiftyTwoWeekHigh, asset.symbol)}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    });
+  };
+
   return (
     <>
       {/* ═══════════════ LEFT SIDEBAR HUD ═══════════════ */}
@@ -333,11 +430,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
           {/* Header */}
           <div className="sidebar-header">
-            <div className="flex-between w-full" style={{ alignItems: 'center', marginBottom: '8px' }}>
-              <div className="app-logo-container" style={{ display: 'flex', alignItems: 'center', gap: '8px', maxWidth: 'none' }}>
-                <img src="/bull-bear-bonsai-logomark.png" alt="Bull-Bear Bonsai" className="app-logo" />
-                <span className="app-title-text">Bull Bear Bonsai</span>
-              </div>
+            <div className="app-logo-container" style={{ display: 'flex', alignItems: 'center', gap: '8px', maxWidth: 'none' }}>
+              <img src="/bull-bear-bonsai-logomark.png" alt="Bull-Bear Bonsai" className="app-logo" />
+              <span className="app-title-text">Bull Bear Bonsai</span>
             </div>
 
             {/* Time and Refresh inline */}
@@ -355,8 +450,11 @@ export const Dashboard: React.FC<DashboardProps> = ({
                       : 'Refresh Market Feed'
                 }
               >
-                <RefreshCw size={11} />
-                {refreshCooldown > 0 && <span className="cooldown-text">{refreshCooldown}s</span>}
+                {refreshCooldown > 0 ? (
+                  <span className="cooldown-text">{refreshCooldown}</span>
+                ) : (
+                  <RefreshCw size={11} />
+                )}
               </button>
             </div>
           </div>
@@ -366,73 +464,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
           {/* ── Asset cards stack ── */}
           <div className="sidebar-indices-container">
-            {Object.entries(data.assets).map(([key, asset]) => {
-              const isSelected = selectedAssetKey === key;
-              const isPositive = asset.dailyChangePercent >= 0;
-              const details = ASSET_DETAILS[key] || { subtitle: asset.symbol, iconType: 'letter', letter: 'S' };
-              return (
-                <div
-                  key={asset.symbol}
-                  className={`stock-card-row ${isSelected ? (isPositive ? 'selected-positive' : 'selected-negative') : ''} ${isSelected ? 'expanded' : ''}`}
-                  onClick={() => setSelectedAssetKey(key as 'nifty' | 'nasdaq' | 'gold' | 'btc')}
-                  style={{ cursor: 'pointer' }}
-                >
-                  <div className="stock-card-main-info">
-                    <div className="stock-card-left">
-                      {details.iconType === 'letter' && (
-                        <div className="stock-card-icon letter-icon" style={{ backgroundColor: details.iconBgColor }}>
-                          {details.letter}
-                        </div>
-                      )}
-                      {details.iconType === 'nasdaq' && (
-                        <div className="stock-card-icon nasdaq-icon">
-                          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M6 18L14 6" stroke="#ffffff" strokeWidth="3" strokeLinecap="round" />
-                            <path d="M11 18L19 6" stroke="#00c3ff" strokeWidth="3" strokeLinecap="round" />
-                          </svg>
-                        </div>
-                      )}
-                      {details.iconType === 'bitcoin' && (
-                        <div className="stock-card-icon bitcoin-icon">
-                          ₿
-                        </div>
-                      )}
-
-                      <div className="stock-card-names">
-                        <div className="stock-card-name">
-                          {asset.name.length > 25 ? `${asset.name.substring(0, 22)}...` : asset.name}
-                        </div>
-                        <div className="stock-card-subtitle">{details.subtitle}</div>
-                      </div>
-                    </div>
-
-                    <div className="stock-card-right">
-                      <div className="stock-card-price">{formatPrice(asset.currentPrice, asset.symbol)}</div>
-                      <div className={`stock-card-change ${isPositive ? 'positive' : 'negative'}`}>
-                        {isPositive ? '+' : ''}{asset.dailyChangePercent.toFixed(2)}%
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="stock-card-expanded-content">
-                    <div className="stock-card-chart-title">Past 5 Days Trend</div>
-                    <div className="stock-card-chart-container">
-                      <HistoricalChart prices={asset.historicalPrices} isPositive={isPositive} />
-                    </div>
-                    <div className="stock-card-range-stats">
-                      <div className="range-stat-item">
-                        <span className="stat-label">52W Low</span>
-                        <span className="stat-val">{formatPrice(asset.fiftyTwoWeekLow, asset.symbol)}</span>
-                      </div>
-                      <div className="range-stat-item">
-                        <span className="stat-label">52W High</span>
-                        <span className="stat-val">{formatPrice(asset.fiftyTwoWeekHigh, asset.symbol)}</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+            {renderAssetCards()}
           </div>
 
           {/* Market Overview Card */}
@@ -672,6 +704,22 @@ export const Dashboard: React.FC<DashboardProps> = ({
         </div>{/* end .sidebar-dev-overlay */}
 
       </aside>
+
+      {/* Mobile Bottom Sheet (Only visible on mobile) */}
+      <div 
+        className={`mobile-bottom-sheet ${isSheetExpanded ? 'expanded' : 'collapsed'}`}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+      >
+        <div className="sheet-header" onClick={() => setIsSheetExpanded(!isSheetExpanded)}>
+          <div className="sheet-drag-handle" />
+          <span className="sheet-title">Market Assets</span>
+        </div>
+        <div className="sheet-content">
+          {renderAssetCards()}
+        </div>
+      </div>
     </>
   );
 };

@@ -1,12 +1,14 @@
 import React, { Suspense, useMemo, useRef, useEffect } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { OrbitControls, Environment, Sky, Cloud, useTexture, useGLTF } from '@react-three/drei';
+import { OrbitControls, Environment, Cloud, useTexture, useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
 import BonsaiTree from './BonsaiTree';
 import WeatherSystem from './WeatherSystem';
+import FlyingLeaves from './FlyingLeaves';
 import { EffectComposer, Bloom, Vignette, Noise, ToneMapping } from '@react-three/postprocessing';
 import { ToneMappingMode } from 'postprocessing';
 
+useGLTF.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.5/');
 useGLTF.preload('/grass_medium_01_1k.gltf');
 
 
@@ -32,42 +34,7 @@ function getWindForce(weeklyChange: number): number {
   return 1.8;
 }
 
-const getSkyParams = (weather: WeatherState) => {
-  if (weather === 'sunny') {
-    return {
-      turbidity: 0.5,
-      rayleigh: 4.0,
-      mieCoefficient: 0.005,
-      mieDirectionalG: 0.8,
-      sunPosition: [15, 12, 10] as [number, number, number],
-    };
-  } else if (weather === 'cloudy') {
-    return {
-      turbidity: 2.0,
-      rayleigh: 3.2,
-      mieCoefficient: 0.01,
-      mieDirectionalG: 0.75,
-      sunPosition: [5, 15, -5] as [number, number, number],
-    };
-  } else if (weather === 'rainy') {
-    return {
-      turbidity: 3.5,
-      rayleigh: 2.4,
-      mieCoefficient: 0.025,
-      mieDirectionalG: 0.6,
-      sunPosition: [0, 8, -10] as [number, number, number],
-    };
-  } else {
-    // storm
-    return {
-      turbidity: 5.0,
-      rayleigh: 1.8,
-      mieCoefficient: 0.05,
-      mieDirectionalG: 0.4,
-      sunPosition: [0, 5, -15] as [number, number, number],
-    };
-  }
-};
+
 
 const CloudsSystem: React.FC<{ weather: WeatherState }> = ({ weather }) => {
   const params = useMemo(() => {
@@ -484,11 +451,11 @@ const FPSCounter: React.FC = () => {
         const fps = Math.round((frameCount * 1000) / (now - lastTime));
         if (containerRef.current) {
           containerRef.current.textContent = `${fps} FPS`;
-          
+
           let color = '#10b981'; // green
           if (fps < 30) color = '#ef4444'; // red
           else if (fps < 50) color = '#f59e0b'; // amber
-          
+
           containerRef.current.style.color = color;
           if (dotRef.current) {
             dotRef.current.style.backgroundColor = color;
@@ -519,7 +486,6 @@ export const BonsaiCanvas: React.FC<BonsaiCanvasProps> = ({
   leafDensity,
 }) => {
   const weather = useMemo(() => getWeatherState(weeklyChangePercent), [weeklyChangePercent]);
-  const skyParams = useMemo(() => getSkyParams(weather), [weather]);
 
   return (
     <div className="canvas-container" style={{ position: 'relative' }}>
@@ -533,15 +499,6 @@ export const BonsaiCanvas: React.FC<BonsaiCanvasProps> = ({
         }}
       >
         <Suspense fallback={null}>
-          {/* Dynamic Sky Component (within camera clipping plane) */}
-          <Sky
-            distance={1000}
-            turbidity={skyParams.turbidity}
-            rayleigh={skyParams.rayleigh}
-            mieCoefficient={skyParams.mieCoefficient}
-            mieDirectionalG={skyParams.mieDirectionalG}
-            sunPosition={skyParams.sunPosition}
-          />
 
           {/* Dynamic Clouds System */}
           <CloudsSystem weather={weather} />
@@ -551,6 +508,12 @@ export const BonsaiCanvas: React.FC<BonsaiCanvasProps> = ({
 
           {/* Weather visual & lighting system */}
           <WeatherSystem weeklyChangePercent={weeklyChangePercent} />
+
+          {/* Dynamic wind-affected flying leaves */}
+          <FlyingLeaves
+            dailyChangePercent={dailyChangePercent}
+            weeklyChangePercent={weeklyChangePercent}
+          />
 
           {/* Bonsai Tree and ceramic pot */}
           <group position={[0.6, 0, 0]}>
@@ -574,7 +537,7 @@ export const BonsaiCanvas: React.FC<BonsaiCanvasProps> = ({
             minDistance={2.5}
             maxDistance={7.5}
             minPolarAngle={0.2}
-            maxPolarAngle={Math.PI / 2 - 0.05} // Prevent camera going below ground
+            maxPolarAngle={Math.PI / 2 + 0.12} // Allow camera to go slightly lower
             target={[0.6, -1, 0]}
           />
 
