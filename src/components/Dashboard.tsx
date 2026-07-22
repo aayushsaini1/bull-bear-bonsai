@@ -146,26 +146,26 @@ const SparklineChart: React.FC<{
 // ── Right-panel derivation helpers ────────────────────────────────────────────
 
 function getLeafColorInfo(daily: number) {
-  if (daily > 0.8)  return { text: 'Healthy Green',  color: 'green'  };
-  if (daily > 0.2)  return { text: 'Light Green',    color: 'green'  };
-  if (daily > -0.2) return { text: 'Neutral Amber',  color: 'yellow' };
-  if (daily > -0.8) return { text: 'Pale Yellow',    color: 'yellow' };
-  return              { text: 'Bear Red',            color: 'red'    };
+  if (daily > 0.8) return { text: 'Healthy Green', color: 'green' };
+  if (daily > 0.2) return { text: 'Light Green', color: 'green' };
+  if (daily > -0.2) return { text: 'Neutral Amber', color: 'yellow' };
+  if (daily > -0.8) return { text: 'Pale Yellow', color: 'yellow' };
+  return { text: 'Bear Red', color: 'red' };
 }
 
 function getWindKmh(weekly: number): number {
-  if (weekly > 1.5)  return 8;
-  if (weekly > 0.5)  return 14;
+  if (weekly > 1.5) return 8;
+  if (weekly > 0.5) return 14;
   if (weekly > -0.5) return 22;
   if (weekly > -1.5) return 38;
   return 65;
 }
 
 function getWeatherInfo(weekly: number) {
-  if (weekly > 1.0)  return { text: 'Clear Sky',    color: 'yellow' };
-  if (weekly >= -0.5) return { text: 'Light Rain',  color: 'blue'   };
-  if (weekly >= -2.0) return { text: 'Heavy Rain',  color: 'blue'   };
-  return               { text: 'Thunderstorm',     color: 'purple'  };
+  if (weekly > 1.0) return { text: 'Clear Sky', color: 'yellow' };
+  if (weekly >= -0.5) return { text: 'Light Rain', color: 'blue' };
+  if (weekly >= -2.0) return { text: 'Heavy Rain', color: 'blue' };
+  return { text: 'Thunderstorm', color: 'purple' };
 }
 
 function getVolatilityInfo(data: TreeData) {
@@ -175,9 +175,9 @@ function getVolatilityInfo(data: TreeData) {
       Math.abs(data.assets.gold.dailyChangePercent) +
       Math.abs(data.assets.btc.dailyChangePercent)) /
     4;
-  if (avgAbs < 0.4) return { text: 'Low',      color: 'green'  };
+  if (avgAbs < 0.4) return { text: 'Low', color: 'green' };
   if (avgAbs < 1.2) return { text: 'Moderate', color: 'yellow' };
-  return              { text: 'High',         color: 'red'    };
+  return { text: 'High', color: 'red' };
 }
 
 
@@ -287,13 +287,13 @@ export const Dashboard: React.FC<DashboardProps> = ({
     if (isSimulating && isMockMode) {
       simulationInterval.current = setInterval(() => {
         setMockParams(prev => {
-          const newDaily  = Math.max(-3.0, Math.min(3.0, prev.dailyChangePercent  + (Math.random() - 0.5) * 0.15));
+          const newDaily = Math.max(-3.0, Math.min(3.0, prev.dailyChangePercent + (Math.random() - 0.5) * 0.15));
           const newWeekly = Math.max(-5.0, Math.min(5.0, prev.weeklyChangePercent + (Math.random() - 0.5) * 0.25));
-          const newDensity = Math.max(0.05, Math.min(1.0, prev.leafDensity        + (Math.random() - 0.5) * 0.05));
+          const newDensity = Math.max(0.05, Math.min(1.0, prev.leafDensity + (Math.random() - 0.5) * 0.05));
           return {
-            dailyChangePercent:  parseFloat(newDaily.toFixed(2)),
+            dailyChangePercent: parseFloat(newDaily.toFixed(2)),
             weeklyChangePercent: parseFloat(newWeekly.toFixed(2)),
-            leafDensity:         parseFloat(newDensity.toFixed(2)),
+            leafDensity: parseFloat(newDensity.toFixed(2)),
           };
         });
       }, 1500);
@@ -325,11 +325,11 @@ export const Dashboard: React.FC<DashboardProps> = ({
   };
 
   // Right-panel derived data
-  const leafColorInfo  = getLeafColorInfo(data.dailyChangePercent);
-  const windKmh        = getWindKmh(data.weeklyChangePercent);
-  const weatherInfo    = getWeatherInfo(data.weeklyChangePercent);
+  const leafColorInfo = getLeafColorInfo(data.dailyChangePercent);
+  const windKmh = getWindKmh(data.weeklyChangePercent);
+  const weatherInfo = getWeatherInfo(data.weeklyChangePercent);
   const volatilityInfo = getVolatilityInfo(data);
-  const overviewText   = getMarketOverviewText(data);
+  const overviewText = getMarketOverviewText(data);
 
   // Barcode element (reused in both footer and dev panel)
   const Barcode = () => (
@@ -443,10 +443,10 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 onClick={handleRefreshWithCooldown}
                 disabled={isMockMode || isLoading || refreshCooldown > 0}
                 title={
-                  isMockMode 
-                    ? 'Refresh disabled in Dev Mode' 
-                    : refreshCooldown > 0 
-                      ? `Cooldown: wait ${refreshCooldown}s` 
+                  isMockMode
+                    ? 'Refresh disabled in Dev Mode'
+                    : refreshCooldown > 0
+                      ? `Cooldown: wait ${refreshCooldown}s`
                       : 'Refresh Market Feed'
                 }
               >
@@ -691,7 +691,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
               <span className="signature-text">made by</span>
               <Barcode />
               <a
-                href="https://alpher03.vercel.app"
+                href="https://aayushsaini.com"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="signature-link"
@@ -706,7 +706,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
       </aside>
 
       {/* Mobile Bottom Sheet (Only visible on mobile) */}
-      <div 
+      <div
         className={`mobile-bottom-sheet ${isSheetExpanded ? 'expanded' : 'collapsed'}`}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
