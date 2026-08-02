@@ -69,16 +69,16 @@ export const WeatherSystem: React.FC<WeatherSystemProps> = ({ weeklyChangePercen
   }, [weather]);
 
   const targetFogDensity = useMemo(() => {
-    if (weather === 'sunny') return 0.055; // Enough to fade ground edge (50 units away) completely into background
-    if (weather === 'cloudy') return 0.065;
-    if (weather === 'rainy') return 0.08;
-    return 0.095; // Dense stormy fog
+    if (weather === 'sunny') return 0.07; // Light balanced atmospheric fog
+    if (weather === 'cloudy') return 0.085;
+    if (weather === 'rainy') return 0.105;
+    return 0.13; // Stormy fog
   }, [weather]);
 
   // Initialize fog on mount and match background color to the target weather fog color
   React.useEffect(() => {
     if (!scene.fog) {
-      scene.fog = new THREE.FogExp2(targetFogColor.getHexString(), 0.055);
+      scene.fog = new THREE.FogExp2(targetFogColor.getHex(), 0.07);
     }
     scene.background = targetFogColor.clone();
   }, [scene, targetFogColor]);

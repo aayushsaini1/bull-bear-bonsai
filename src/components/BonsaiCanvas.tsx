@@ -1,4 +1,4 @@
-import React, { Suspense, useMemo, useRef, useEffect } from 'react';
+import React, { Suspense, useMemo, useRef, useEffect, useState } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, Environment, Cloud, useTexture, useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
@@ -291,19 +291,16 @@ const Grass: React.FC<{ weeklyChangePercent: number }> = ({ weeklyChangePercent 
       <instancedMesh
         ref={meshRefSmall}
         args={[geomSmall, customMaterial, grassInstancesSmall.length / 16]}
-        castShadow
         receiveShadow
       />
       <instancedMesh
         ref={meshRefMid}
         args={[geomMid, customMaterial, grassInstancesMid.length / 16]}
-        castShadow
         receiveShadow
       />
       <instancedMesh
         ref={meshRefLarge}
         args={[geomLarge, customMaterial, grassInstancesLarge.length / 16]}
-        castShadow
         receiveShadow
       />
     </group>
@@ -417,14 +414,14 @@ const Ground: React.FC = () => {
     if (soilTexture) {
       soilTexture.wrapS = THREE.RepeatWrapping;
       soilTexture.wrapT = THREE.RepeatWrapping;
-      soilTexture.repeat.set(32, 32); // Detailed fine tiling across the large plane
+      soilTexture.repeat.set(16, 16); // Detailed fine tiling across the plane
       soilTexture.needsUpdate = true;
     }
   }, [soilTexture]);
 
   return (
     <mesh receiveShadow rotation={[-Math.PI / 2, 0, 0]} position={[0.6, -1.65, 0]}>
-      <planeGeometry args={[100, 100]} />
+      <circleGeometry args={[25, 6]} />
       <meshStandardMaterial
         map={soilTexture}
         color="#2e2520" // Dark, rich soil color multiplier to tone down the brightness
@@ -490,9 +487,10 @@ export const BonsaiCanvas: React.FC<BonsaiCanvasProps> = ({
   return (
     <div className="canvas-container" style={{ position: 'relative' }}>
       <Canvas
+        dpr={[1, 1.5]} // Cap resolution on high-DPI displays to hit 60 FPS cleanly
         shadows
-        camera={{ position: [0, 0.7, 4.5], fov: 45, near: 0.1, far: 2000 }}
-        gl={{ antialias: true, alpha: false }}
+        camera={{ position: [0.6, 0.7, 4.5], fov: 45, near: 0.1, far: 2000 }}
+        gl={{ antialias: true, alpha: false, powerPreference: 'high-performance' }}
         onCreated={({ gl }) => {
           gl.setClearColor('#000000'); // Controlled fully by sky and weather fog
           gl.toneMappingExposure = 0.75;
@@ -515,7 +513,7 @@ export const BonsaiCanvas: React.FC<BonsaiCanvasProps> = ({
             weeklyChangePercent={weeklyChangePercent}
           />
 
-          {/* Bonsai Tree and ceramic pot */}
+          {/* Bonsai Tree and ceramic pot (placed at x=0.6, right of screen center) */}
           <group position={[0.6, 0, 0]}>
             <BonsaiTree
               dailyChangePercent={dailyChangePercent}
@@ -532,17 +530,18 @@ export const BonsaiCanvas: React.FC<BonsaiCanvasProps> = ({
 
           {/* Viewport Orbiting Control Constraints */}
           <OrbitControls
+            enablePan={false} // Restrict camera from panning away from the tree
             enableDamping
             dampingFactor={0.06}
             minDistance={2.5}
             maxDistance={7.5}
             minPolarAngle={0.2}
-            maxPolarAngle={Math.PI / 2 + 0.12} // Allow camera to go slightly lower
+            maxPolarAngle={Math.PI / 2 - 0.01} // Restrict camera from looking under ground plane
             target={[0.6, -1, 0]}
           />
 
           {/* Cinematic Post-Processing Stack */}
-          <EffectComposer>
+          <EffectComposer multisampling={0}>
             <Bloom
               intensity={0.3}
               luminanceThreshold={0.45}
@@ -560,7 +559,6 @@ export const BonsaiCanvas: React.FC<BonsaiCanvasProps> = ({
             <ToneMapping
               mode={ToneMappingMode.ACES_FILMIC}
             />
-            {/* <BonsaiLensFlare enabled={weather === 'sunny'} /> */}
           </EffectComposer>
         </Suspense>
       </Canvas>
