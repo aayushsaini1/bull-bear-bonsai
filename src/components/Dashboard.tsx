@@ -40,9 +40,10 @@ interface DashboardProps {
 const HistoricalChart: React.FC<{
   prices: number[];
   isPositive: boolean;
+  symbol?: string;
   width?: number;
   height?: number;
-}> = ({ prices, isPositive, width = 240, height = 45 }) => {
+}> = ({ prices, isPositive, symbol = 'asset', width = 240, height = 45 }) => {
   if (!prices || prices.length < 2) return null;
 
   const min = Math.min(...prices);
@@ -62,7 +63,7 @@ const HistoricalChart: React.FC<{
 
   const areaD = `${pathD} L ${width} ${height} L 0 ${height} Z`;
   const lineColor = isPositive ? '#22c55e' : '#ef4444';
-  const gradientId = `hist-grad-${Math.random()}`;
+  const gradientId = `hist-grad-${symbol.replace(/[^a-zA-Z0-9]/g, '')}`;
 
   return (
     <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" style={{ display: 'block', overflow: 'visible' }}>
@@ -402,7 +403,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
           <div className="stock-card-expanded-content">
             <div className="stock-card-chart-title">Past 5 Days Trend</div>
             <div className="stock-card-chart-container">
-              <HistoricalChart prices={asset.historicalPrices} isPositive={isPositive} />
+              <HistoricalChart prices={asset.historicalPrices} isPositive={isPositive} symbol={asset.symbol} />
             </div>
             <div className="stock-card-range-stats">
               <div className="range-stat-item">
